@@ -1,0 +1,39 @@
+.checkout-background-base {
+  width: 100%;
+  position: absolute;
+  z-index: -1;
+}
+
+.grain-background {
+  background: url('/assets/background/grain-bg.svg') repeat;
+}
+
+.grid-bg {
+  background: url('/assets/background/grid-bg.svg') no-repeat;
+}
+
+.top-left-gradient-background {
+  background: url('/assets/background/checkout-top-gradient.svg') no-repeat top left;
+}
+.bottom-right-gradient-background {
+  background: url('/assets/background/checkout-bottom-gradient.svg') no-repeat bottom right;
+}
+
+.footer-border {
+  position: relative;
+  background: linear-gradient(90deg, rgba(65, 75, 78, 0) 0%, #414b4e 49.5%, rgba(65, 75, 78, 0) 100%);
+}
+.footer-border::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: calc(50% - 124px);
+  width: 248px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 15%,
+    rgba(255, 248, 0, 0.6) 50%,
+    rgba(255, 255, 255, 0) 85%
+  );
+}
