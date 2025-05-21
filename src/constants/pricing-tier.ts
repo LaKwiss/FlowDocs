@@ -20,7 +20,7 @@ export const PricingTier: Tier[] = [
     description: 'Ideal for individuals who want to get started with simple design tasks.',
     features: ['1 workspace', 'Limited collaboration', 'Export to PNG and SVG'],
     featured: false,
-    stripePriceIds: { month: 'price_YOUR_STARTER_MONTHLY_ID', year: 'price_YOUR_STARTER_YEARLY_ID' },
+    stripePriceIds: { month: 'price_1RR9JFQozR9XtQ8yAFIUibpV', year: 'price_1RR9MyQozR9XtQ8y3hPQjZBu' },
   },
   {
     name: 'Pro',
@@ -29,7 +29,7 @@ export const PricingTier: Tier[] = [
     description: 'Enhanced design tools for scaling teams who need more flexibility.',
     features: ['Integrations', 'Unlimited workspaces', 'Advanced editing tools', 'Everything in Starter'],
     featured: true,
-    stripePriceIds: { month: 'price_YOUR_PRO_MONTHLY_ID', year: 'price_YOUR_PRO_YEARLY_ID' },
+    stripePriceIds: { month: 'price_1RR9JqQozR9XtQ8y5MLMlGEg', year: 'price_1RR9NUQozR9XtQ8yftA2Yzpo' },
   },
   {
     name: 'Advanced',
@@ -44,6 +44,6 @@ export const PricingTier: Tier[] = [
       'Everything in Pro',
     ],
     featured: false,
-    stripePriceIds: { month: 'price_YOUR_ADVANCED_MONTHLY_ID', year: 'price_YOUR_ADVANCED_YEARLY_ID' },
+    stripePriceIds: { month: 'price_1RR9K4QozR9XtQ8yr3zEp5jQ', year: 'price_1RR9NwQozR9XtQ8yIul7ubzq' },
   },
 ];

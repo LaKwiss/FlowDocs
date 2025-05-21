@@ -1,18 +1,19 @@
 // src/components/dashboard/subscriptions/components/subscription-detail.tsx
 'use client';
 
-import { getStripeSubscriptionDetail, StripeSubscriptionDetailResponse } from '@/utils/stripe/get-subscriptions-detail';
+import { getStripeSubscriptionDetail, StripeSubscriptionDetailResponse } from '@/utils/stripe/get-subscriptions-detail'; // Ensure this file exists at the specified path
 import { getStripeInvoices, StripeInvoiceResponse } from '@/utils/stripe/get-stripe-invoices';
-import { SubscriptionPastPaymentsCard } from '@/components/dashboard/subscriptions/components/subscription-past-payments-card'; // À adapter
-import { SubscriptionNextPaymentCard } from '@/components/dashboard/subscriptions/components/subscription-next-payment-card'; // À adapter
-import { SubscriptionLineItems } from '@/components/dashboard/subscriptions/components/subscription-line-items'; // À adapter
-import { SubscriptionHeader } from '@/components/dashboard/subscriptions/components/subscription-header'; // À adapter
+import { SubscriptionPastPaymentsCard } from '@/components/dashboard/subscriptions/components/subscription-past-payments-card';
+import { SubscriptionNextPaymentCard } from '@/components/dashboard/subscriptions/components/subscription-next-payment-card';
+import { SubscriptionLineItems } from '@/components/dashboard/subscriptions/components/subscription-line-items';
+import { SubscriptionHeader } from '@/components/dashboard/subscriptions/components/subscription-header';
 import { Separator } from '@/components/ui/separator';
 import { ErrorContent } from '@/components/dashboard/layout/error-content';
 import { useEffect, useState } from 'react';
 import { LoadingScreen } from '@/components/dashboard/layout/loading-screen';
-import { createClient } from '@/utils/supabase/client'; // Pour obtenir l'ID utilisateur côté client
+import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
+import Stripe from 'stripe'; // Importer le type Stripe pour l'utiliser explicitement
 
 interface Props {
   subscriptionId: string;
@@ -20,7 +21,9 @@ interface Props {
 
 export function SubscriptionDetail({ subscriptionId }: Props) {
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<StripeSubscriptionDetailResponse>();
+  // Utiliser le type Stripe.Subscription directement pour plus de clarté
+  const [subscriptionData, setSubscriptionData] = useState<Stripe.Subscription | undefined>(undefined);
+  const [subscriptionError, setSubscriptionError] = useState<string | undefined>(undefined);
   const [invoices, setInvoices] = useState<StripeInvoiceResponse>();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -32,17 +35,18 @@ export function SubscriptionDetail({ subscriptionId }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return; // Attendre que l'utilisateur soit chargé
+    if (!currentUser) return;
 
     (async () => {
       setLoading(true);
       const [subscriptionResponse, invoicesResponse] = await Promise.all([
-        getStripeSubscriptionDetail(subscriptionId, currentUser.id), // Passer userId pour la vérification d'appartenance
-        getStripeInvoices(currentUser.id, subscriptionId), // Passer userId et subscriptionId
+        getStripeSubscriptionDetail(subscriptionId, currentUser.id),
+        getStripeInvoices(currentUser.id, subscriptionId),
       ]);
 
       if (subscriptionResponse) {
-        setSubscription(subscriptionResponse);
+        setSubscriptionData(subscriptionResponse.data);
+        setSubscriptionError(subscriptionResponse.error);
       }
 
       if (invoicesResponse) {
@@ -54,33 +58,37 @@ export function SubscriptionDetail({ subscriptionId }: Props) {
 
   if (loading) {
     return <LoadingScreen />;
-  } else if (subscription?.data && invoices?.data) {
-    // Vérifier si une erreur est retournée par getStripeSubscriptionDetail (ex: non-appartenance)
-    if (subscription.error) {
-      return <ErrorContent />;
-    }
-    return (
-      <>
-        <div>
-          {/* Adapter SubscriptionHeader pour Stripe.Subscription */}
-          <SubscriptionHeader subscription={subscription.data} />
-          <Separator className={'relative bg-border mb-8 dashboard-header-highlight'} />
-        </div>
-        <div className={'grid gap-6 grid-cols-1 xl:grid-cols-6'}>
-          <div className={'grid auto-rows-max gap-6 grid-cols-1 xl:col-span-2'}>
-            {/* Adapter SubscriptionNextPaymentCard pour Stripe.Subscription et Stripe.Invoice */}
-            <SubscriptionNextPaymentCard invoices={invoices.data} subscription={subscription.data} />
-            {/* Adapter SubscriptionPastPaymentsCard pour Stripe.Invoice */}
-            <SubscriptionPastPaymentsCard invoices={invoices.data} subscriptionId={subscriptionId} />
-          </div>
-          <div className={'grid auto-rows-max gap-6 grid-cols-1 xl:col-span-4'}>
-            {/* Adapter SubscriptionLineItems pour Stripe.Subscription */}
-            <SubscriptionLineItems subscription={subscription.data} />
-          </div>
-        </div>
-      </>
-    );
-  } else {
+  }
+
+  if (subscriptionError || !subscriptionData) {
+    // Si une erreur spécifique est retournée (ex: non-appartenance) ou si les données sont absentes
     return <ErrorContent />;
   }
+
+  // invoices?.data pourrait être undefined si getStripeInvoices retourne une erreur mais pas subscriptionResponse
+  if (invoices?.error && !invoices.data?.length) {
+    return <ErrorContent />;
+  }
+
+  return (
+    <>
+      <div>
+        <SubscriptionHeader subscription={subscriptionData} />
+        <Separator className={'relative bg-border mb-8 dashboard-header-highlight'} />
+      </div>
+      <div className={'grid gap-6 grid-cols-1 xl:grid-cols-6'}>
+        <div className={'grid auto-rows-max gap-6 grid-cols-1 xl:col-span-2'}>
+          {/*
+            Correction: La prop 'invoices' n'est pas attendue par SubscriptionNextPaymentCard.
+            Ce composant déduit les informations du prochain paiement à partir de l'objet 'subscription' lui-même.
+          */}
+          <SubscriptionNextPaymentCard subscription={subscriptionData} />
+          <SubscriptionPastPaymentsCard invoices={invoices?.data} subscriptionId={subscriptionId} />
+        </div>
+        <div className={'grid auto-rows-max gap-6 grid-cols-1 xl:col-span-4'}>
+          <SubscriptionLineItems subscription={subscriptionData} />
+        </div>
+      </div>
+    </>
+  );
 }

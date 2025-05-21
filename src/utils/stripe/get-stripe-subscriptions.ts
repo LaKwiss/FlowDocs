@@ -33,7 +33,7 @@ export async function getStripeSubscriptions(userId?: string): Promise<StripeSub
       customer: stripeCustomerId,
       status: 'all', // ou 'active', 'trialing', 'canceled', etc.
       limit: 20, // Gérer la pagination si nécessaire
-      expand: ['data.default_payment_method', 'data.latest_invoice.payment_intent'], // Pour plus de détails
+      expand: ['data.default_payment_method', 'data.latest_invoice'], // Pour plus de détails
     });
 
     return {

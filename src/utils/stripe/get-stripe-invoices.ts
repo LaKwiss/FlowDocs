@@ -1,4 +1,3 @@
-// src/utils/stripe/get-stripe-invoices.ts
 'use server';
 
 import { getStripeCustomerId } from '@/utils/stripe/get-stripe-customer-id';
@@ -22,23 +21,30 @@ export async function getStripeInvoices(
   startingAfter?: string, // Pour la pagination
 ): Promise<StripeInvoiceResponse> {
   try {
+    // Vérification de l'ID d'abonnement
+    if (!subscriptionId) {
+      return { data: [], hasMore: false };
+    }
+
+    // Récupération de l'ID client Stripe
     const stripeCustomerId = await getStripeCustomerId(userId);
     if (!stripeCustomerId) {
       return { data: [], hasMore: false };
     }
 
     const stripe = getStripeInstance();
-    const invoices = await stripe.invoices.list({
+
+    // Récupérer les factures liées à un client, pas à un abonnement
+    const invoicesResult = await stripe.invoices.list({
       customer: stripeCustomerId,
-      subscription: subscriptionId || undefined,
-      limit: 10, // Ajustez selon vos besoins
+      subscription: subscriptionId,
+      limit: 10,
       starting_after: startingAfter || undefined,
-      expand: ['data.charge', 'data.payment_intent'],
     });
 
     return {
-      data: JSON.parse(JSON.stringify(invoices.data)) as Stripe.Invoice[],
-      hasMore: invoices.has_more,
+      data: JSON.parse(JSON.stringify(invoicesResult.data)),
+      hasMore: invoicesResult.has_more,
     };
   } catch (e: any) {
     console.error('Error fetching Stripe invoices:', e);

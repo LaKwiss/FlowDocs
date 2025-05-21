@@ -24,7 +24,7 @@ export async function getStripeSubscriptionDetail(
 
     const stripe = getStripeInstance();
     const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-      expand: ['items.data.price.product', 'default_payment_method', 'latest_invoice.payment_intent'],
+      expand: ['items.data.price.product', 'default_payment_method', 'latest_invoice'],
     });
 
     if (subscription.customer !== stripeCustomerId) {
