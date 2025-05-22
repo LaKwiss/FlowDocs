@@ -12,10 +12,6 @@ export interface StripeInvoiceResponse {
 }
 const ErrorMessage = 'Un problème est survenu, veuillez réessayer plus tard';
 
-// function getErrorMessageResponse(): StripeInvoiceResponse {
-//   return { error: ErrorMessage, data: [], hasMore: false };
-// }
-
 export async function getStripeInvoices(
   userId?: string,
   subscriptionId?: string,
@@ -39,10 +35,11 @@ export async function getStripeInvoices(
     const stripe = getStripeInstance();
     const listParams: Stripe.InvoiceListParams = {
       customer: stripeCustomerId,
-      limit: 10,
+      limit: 10, // Récupère jusqu'à 10 factures par appel
     };
 
-    // Expansion conditionnelle
+    // Initialiser expandParams vide.
+    // D'autres expansions légitimes pourraient être ajoutées ici si nécessaire (ex: 'data.charge').
     const expandParams: string[] = [];
 
     if (startingAfter) {
@@ -51,16 +48,14 @@ export async function getStripeInvoices(
 
     if (subscriptionId && subscriptionId.trim() !== '') {
       listParams.subscription = subscriptionId;
-      expandParams.push('data.subscription'); // Étendre l'abonnement seulement si on filtre par abonnement
-      console.log('[getStripeInvoices] Filtering by subscriptionId:', subscriptionId, 'and expanding subscription');
+      // La ligne 'expandParams.push('data.subscription');' a été SUPPRIMÉE
+      // car elle causait l'erreur. Les factures incluront déjà l'ID de l'abonnement.
+      console.log('[getStripeInvoices] Filtering by subscriptionId:', subscriptionId);
     } else {
       console.log('[getStripeInvoices] Not filtering by subscriptionId, fetching all for customer.');
-      // Optionnel: vous pourriez vouloir étendre d'autres champs ici si nécessaire pour la vue générale,
-      // mais 'data.subscription' est risqué sans filtre d'abonnement.
-      // Par exemple, étendre 'data.charge' si vous voulez des détails sur le paiement.
-      // expandParams.push('data.charge');
     }
 
+    // Appliquer les expansions seulement si expandParams n'est pas vide.
     if (expandParams.length > 0) {
       listParams.expand = expandParams;
     }
@@ -79,36 +74,8 @@ export async function getStripeInvoices(
     };
   } catch (e: any) {
     console.error('Erreur lors de la récupération des factures Stripe:', e);
-    // Si c'est l'erreur spécifique d'expansion, on peut la gérer plus finement
-    if (e instanceof Stripe.errors.StripeInvalidRequestError && e.message.includes("doesn't exist: subscription")) {
-      console.warn("[getStripeInvoices] Erreur d'expansion de 'subscription'. Nouvelle tentative sans l'expansion.");
-      // Nouvelle tentative sans l'expansion problématique (si la logique initiale n'a pas suffi)
-      // Ceci est une sécurité, la logique d'expansion conditionnelle devrait prévenir cela.
-      const stripe = getStripeInstance();
-      const simplifiedListParams: Stripe.InvoiceListParams = {
-        customer: (await getStripeCustomerId(userId))!, // On sait qu'il existe à ce stade
-        limit: 10,
-      };
-      if (startingAfter) simplifiedListParams.starting_after = startingAfter;
-      if (subscriptionId && subscriptionId.trim() !== '') simplifiedListParams.subscription = subscriptionId;
-
-      try {
-        const invoicesResultRetry = await stripe.invoices.list(simplifiedListParams);
-        console.log(
-          '[getStripeInvoices] Retry successful. Invoices fetched:',
-          invoicesResultRetry.data.length,
-          'Has more:',
-          invoicesResultRetry.has_more,
-        );
-        return {
-          data: JSON.parse(JSON.stringify(invoicesResultRetry.data)) as Stripe.Invoice[],
-          hasMore: invoicesResultRetry.has_more,
-        };
-      } catch (retryError: any) {
-        console.error('Erreur lors de la nouvelle tentative de récupération des factures Stripe:', retryError);
-        return { error: retryError.message || ErrorMessage, data: [], hasMore: false };
-      }
-    }
+    // Le bloc catch spécifique pour l'erreur d'expansion de 'subscription' a été supprimé.
+    // Ce gestionnaire général attrapera les autres erreurs éventuelles.
     return { error: e.message || ErrorMessage, data: [], hasMore: false };
   }
 }
