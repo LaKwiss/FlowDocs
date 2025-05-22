@@ -1,64 +1,63 @@
 // src/components/dashboard/payments/components/columns.tsx
 'use client';
 
-import { ColumnDef } from '@tanstack/react-table';
-import Stripe from 'stripe';
-import dayjs from 'dayjs';
-import { formatCurrency } from '@/utils/stripe/format-currency'; // À créer
-import { Status } from '@/components/shared/status/status'; // Adapter Status pour les statuts Stripe
+import { ColumnDef } from '@tanstack/react-table'; //
+import Stripe from 'stripe'; //
+import dayjs from 'dayjs'; //
+import { formatCurrency } from '@/utils/stripe/format-currency'; //
+import { Status } from '@/components/shared/status/status'; //
 
-// Ajustez la taille des colonnes si nécessaire
-const columnSize = 'auto' as unknown as number;
+const columnSize = 'auto' as unknown as number; //
 
-// Statuts de facture Stripe et leur signification pour l'affichage
 const invoiceStatusMap: Record<Stripe.Invoice.Status, string> = {
-  draft: 'Draft',
-  open: 'Open', // Due
-  paid: 'Paid',
-  uncollectible: 'Uncollectible',
-  void: 'Void',
+  draft: 'Brouillon', //
+  open: 'Ouverte', // Due //
+  paid: 'Payée', //
+  uncollectible: 'Non recouvrable', //
+  void: 'Annulée', //
 };
 
 export const columns: ColumnDef<Stripe.Invoice>[] = [
+  //
   {
-    accessorKey: 'created', // Date de création de la facture
-    header: 'Date',
-    size: columnSize,
+    accessorKey: 'created', //
+    header: 'Date', //
+    size: columnSize, //
     cell: ({ row }) => {
-      const createdTimestamp = row.getValue('created') as number;
-      return createdTimestamp ? dayjs.unix(createdTimestamp).format('MMM DD, YYYY') : '-';
+      const createdTimestamp = row.getValue('created') as number; //
+      return createdTimestamp ? dayjs.unix(createdTimestamp).format('DD MMM YYYY') : '-'; // Correction format date //
     },
   },
   {
-    accessorKey: 'total', // Montant total de la facture
-    header: () => <div className="text-right font-medium">Amount</div>,
-    size: columnSize,
+    accessorKey: 'total', //
+    header: () => <div className="text-right font-medium">Montant</div>, //
+    size: columnSize, //
     cell: ({ row }) => {
-      const total = row.original.total;
-      const currency = row.original.currency;
-      const formatted = formatCurrency(total, currency); // Stripe envoie les montants en plus petite unité
-      return <div className="text-right font-medium">{formatted}</div>;
+      const total = row.original.total; //
+      const currency = row.original.currency; //
+      const formatted = formatCurrency(total, currency); //
+      return <div className="text-right font-medium">{formatted}</div>; //
     },
   },
   {
-    accessorKey: 'status',
-    header: 'Status',
-    size: columnSize,
+    accessorKey: 'status', //
+    header: 'Statut', //
+    size: columnSize, //
     cell: ({ row }) => {
-      const status = row.original.status;
-      return <Status status={status ? invoiceStatusMap[status] : 'Unknown'} />;
+      const status = row.original.status; //
+      return <Status statusLabel={status ? invoiceStatusMap[status] : 'Inconnu'} stripeStatus={status || 'unknown'} />;
     },
   },
   {
-    accessorKey: 'description', // Ou utilisez lines.data[0].description
-    header: 'Description',
-    size: columnSize,
+    accessorKey: 'description', //
+    header: 'Description', //
+    size: columnSize, //
     cell: ({ row }) => {
-      const invoice = row.original;
-      const firstLineItem = invoice.lines?.data[0];
-      let description = invoice.description || firstLineItem?.description || 'Subscription';
+      const invoice = row.original; //
+      const firstLineItem = invoice.lines?.data[0]; //
+      let description = invoice.description || firstLineItem?.description || 'Abonnement'; //
       if (invoice.lines && invoice.lines.data.length > 1) {
-        description += ` (+${invoice.lines.data.length - 1} more items)`;
+        description += ` (+${invoice.lines.data.length - 1} autres articles)`; //
       }
       return (
         <div className={'max-w-[250px]'}>
@@ -69,21 +68,21 @@ export const columns: ColumnDef<Stripe.Invoice>[] = [
       );
     },
   },
-  // Vous pouvez ajouter une colonne pour un lien vers la facture hébergée par Stripe
   {
-    id: 'actions',
-    header: 'Invoice',
+    id: 'actions', //
+    header: 'Facture', //
     cell: ({ row }) => {
-      const invoice = row.original;
+      const invoice = row.original; //
       if (invoice.hosted_invoice_url) {
+        //
         return (
           <a
-            href={invoice.hosted_invoice_url}
+            href={invoice.hosted_invoice_url} //
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-500 hover:underline"
           >
-            View Invoice
+            Voir la facture
           </a>
         );
       }

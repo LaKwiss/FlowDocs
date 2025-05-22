@@ -7,16 +7,15 @@ import { DataTable } from '@/components/dashboard/payments/components/data-table
 import { columns } from '@/components/dashboard/payments/components/columns';
 import { useEffect, useState } from 'react';
 import { LoadingScreen } from '@/components/dashboard/layout/loading-screen';
-// Remplacer usePagination par une logique adaptée à la pagination Stripe (curseurs 'starting_after')
-// Pour l'instant, nous allons simplifier et ne pas implémenter la pagination complexe ici.
-// Vous devrez gérer `starting_after` pour la pagination.
+import { createClient } from '@/utils/supabase/client';
+import { User } from '@supabase/supabase-js';
 
 interface Props {
-  subscriptionId?: string; // Stripe Invoices peuvent être filtrées par subscriptionId
-  userId?: string; // Pour récupérer le customer_id Stripe
+  subscriptionId?: string;
+  userId?: string; // Propriété pour un userId explicite, bien que l'on se base surtout sur l'utilisateur connecté
 }
 
-export function PaymentsContent({ subscriptionId, userId }: Props) {
+export function PaymentsContent({ subscriptionId: propsSubscriptionId, userId: propsUserId }: Props) {
   const [invoiceResponse, setInvoiceResponse] = useState<StripeInvoiceResponse>({
     data: [],
     hasMore: false,
@@ -24,26 +23,53 @@ export function PaymentsContent({ subscriptionId, userId }: Props) {
   });
   const [loading, setLoading] = useState(true);
   const [currentPageCursor, setCurrentPageCursor] = useState<string | undefined>(undefined);
-  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
 
   useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setCurrentUser(user);
+      setInitialAuthCheckComplete(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!initialAuthCheckComplete) {
+      // Attendre que la vérification d'authentification initiale soit terminée
+      return;
+    }
+
+    const effectiveUserId = propsUserId || currentUser?.id;
+
+    if (!effectiveUserId) {
+      // Si aucun ID utilisateur n'est disponible après la vérification d'authentification, ne pas tenter de récupérer les données.
+      // Cela peut signifier que l'utilisateur n'est pas connecté ou que les données utilisateur ne sont pas encore disponibles.
+      if (!loading) {
+        // Mettre à jour seulement si on n'est pas déjà dans un état de chargement d'une tentative précédente
+        setInvoiceResponse({ data: [], hasMore: false, error: 'Utilisateur non authentifié ou ID non disponible.' });
+        setLoading(false);
+      }
+      return;
+    }
+
     (async () => {
       setLoading(true);
-      // L'userId est nécessaire pour getStripeInvoices pour trouver le client Stripe.
-      // Si vous passez déjà un subscriptionId, vous pourriez aussi vouloir passer userId
-      // pour vous assurer que l'utilisateur a le droit de voir ces factures.
-      const response = await getStripeInvoices(userId, subscriptionId, currentPageCursor);
+      const response = await getStripeInvoices(effectiveUserId, propsSubscriptionId, currentPageCursor);
       if (response) {
         setInvoiceResponse(response);
+      } else {
+        setInvoiceResponse({ data: [], hasMore: false, error: 'Échec de la récupération des factures.' });
       }
       setLoading(false);
     })();
-  }, [userId, subscriptionId, currentPageCursor]);
+  }, [propsUserId, propsSubscriptionId, currentPageCursor, currentUser, initialAuthCheckComplete]);
 
   const goToNextPage = () => {
     if (invoiceResponse.data && invoiceResponse.data.length > 0 && invoiceResponse.hasMore) {
       const lastInvoiceId = invoiceResponse.data[invoiceResponse.data.length - 1].id;
-      setCursorHistory([...cursorHistory, currentPageCursor || '']); // Sauvegarde du curseur actuel (ou vide pour la première page)
+      setCursorHistory([...cursorHistory, currentPageCursor]);
       setCurrentPageCursor(lastInvoiceId);
     }
   };
@@ -56,12 +82,23 @@ export function PaymentsContent({ subscriptionId, userId }: Props) {
     }
   };
 
-  if (loading && !invoiceResponse.data?.length) {
-    // Afficher le chargement seulement si aucune donnée n'est encore là
+  if (loading && (!initialAuthCheckComplete || (!currentUser && !propsUserId))) {
     return <LoadingScreen />;
   }
+
   if (invoiceResponse.error) {
-    return <ErrorContent />;
+    return <ErrorContent />; // Envisagez de passer le message d'erreur : <ErrorContent message={invoiceResponse.error} />
+  }
+
+  // Si la récupération initiale est terminée, pas de chargement, pas d'erreur, mais pas de données,
+  // DataTable affichera "No results."
+  if (
+    initialAuthCheckComplete &&
+    !loading &&
+    !invoiceResponse.error &&
+    (!invoiceResponse.data || invoiceResponse.data.length === 0)
+  ) {
+    // DataTable affichera "No results."
   }
 
   return (
@@ -69,11 +106,10 @@ export function PaymentsContent({ subscriptionId, userId }: Props) {
       <DataTable
         columns={columns}
         data={invoiceResponse.data ?? []}
-        hasMore={invoiceResponse.hasMore}
-        // totalRecords n'est pas directement fourni par Stripe pour les listes
-        goToNextPage={goToNextPage} // Adapter pour la pagination Stripe
-        goToPrevPage={goToPrevPage} // Adapter
-        hasPrev={cursorHistory.length > 0} // Simple logique de retour
+        hasMore={!!invoiceResponse.hasMore} // S'assurer que c'est un booléen
+        goToNextPage={goToNextPage}
+        goToPrevPage={goToPrevPage}
+        hasPrev={cursorHistory.length > 0 && currentPageCursor !== undefined}
       />
     </div>
   );
