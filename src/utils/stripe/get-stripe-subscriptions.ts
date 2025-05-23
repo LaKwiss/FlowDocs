@@ -5,13 +5,10 @@ import { getStripeCustomerId } from '@/utils/stripe/get-stripe-customer-id';
 import { getStripeInstance } from '@/utils/stripe/get-stripe-instance';
 import Stripe from 'stripe';
 
-// Adapter StripeSubscriptionResponse pour correspondre à vos besoins
 export interface StripeSubscriptionResponse {
   data?: Stripe.Subscription[];
-  hasMore?: boolean; // Stripe utilise has_more dans la pagination List
+  hasMore?: boolean;
   error?: string;
-  // totalRecords n'est pas directement fourni par Stripe list,
-  // mais peut être estimé ou géré différemment si nécessaire.
 }
 
 const ErrorMessage = 'Something went wrong, please try again later';
@@ -24,17 +21,28 @@ export async function getStripeSubscriptions(userId?: string): Promise<StripeSub
   try {
     const stripeCustomerId = await getStripeCustomerId(userId);
     if (!stripeCustomerId) {
-      // Si aucun client Stripe n'est trouvé pour l'utilisateur, il n'a pas d'abonnements.
       return { data: [], hasMore: false };
     }
 
     const stripe = getStripeInstance();
     const subscriptions = await stripe.subscriptions.list({
       customer: stripeCustomerId,
-      status: 'all', // ou 'active', 'trialing', 'canceled', etc.
-      limit: 20, // Gérer la pagination si nécessaire
-      expand: ['data.default_payment_method', 'data.latest_invoice'], // Pour plus de détails
+      status: 'all',
+      limit: 20,
+      // Ajustement de l'expansion pour éviter l'erreur de profondeur.
+      // Nous essayons d'obtenir les détails du prix, qui incluent l'ID du produit.
+      // L'objet Product complet n'est pas garanti ici sans une expansion plus profonde qui cause l'erreur.
+      // Stripe devrait inclure l'objet Product si 'product' est directement sur 'price' ET que 'price' est expandé.
+      // Si 'product' sur 'price' n'est qu'un ID, il faut expandre 'price.product'.
+      // Essayons d'abord d'expandre le produit sur l'item de ligne, ce qui est généralement de la forme `plan.product` (ancien)
+      // ou `price.product` (plus récent, où `price` est sur l'item).
+      // La documentation de Stripe suggère que `plan` (et donc `plan.product`) peut être étendu.
+      // Pour les items (plus récents que plan):
+      expand: ['data.items.data.price', 'data.default_payment_method', 'data.latest_invoice'],
     });
+    // Après avoir récupéré les abonnements, si `price.product` est un ID, et que nous avons besoin du nom,
+    // il faudrait itérer et faire des requêtes `stripe.products.retrieve(productId)` (pas idéal pour la performance).
+    // Alternativement, s'assurer que les `Price` ont des `nickname` utiles.
 
     return {
       data: JSON.parse(JSON.stringify(subscriptions.data)) as Stripe.Subscription[],
@@ -42,6 +50,12 @@ export async function getStripeSubscriptions(userId?: string): Promise<StripeSub
     };
   } catch (e: any) {
     console.error('Error fetching Stripe subscriptions:', e);
+    // Vérifier si l'erreur est liée à l'expansion
+    if (e.message && e.message.includes('expand')) {
+      return {
+        error: `Stripe expansion error: ${e.message}. Check Stripe dashboard for API version compatibility or simplify expansions.`,
+      };
+    }
     return getErrorMessageResponse();
   }
 }

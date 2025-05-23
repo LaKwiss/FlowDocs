@@ -1,20 +1,19 @@
 // src/components/dashboard/subscriptions/components/subscription-cards.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Clock4 } from 'lucide-react';
 import Link from 'next/link';
 import { Status } from '@/components/shared/status/status';
-import Stripe from 'stripe'; // Importer le type Stripe
+import Stripe from 'stripe';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { formatCurrency } from '@/utils/stripe/format-currency'; // Votre utilitaire pour formater la monnaie
+import { formatCurrency } from '@/utils/stripe/format-currency';
 
 interface Props {
   subscriptions: Stripe.Subscription[];
-  className?: string; // className est optionnel
+  className?: string;
 }
 
-// Statuts d'abonnement Stripe et leur libellé pour l'affichage
-const subscriptionStatusMap: Record<Stripe.Subscription.Status, string> = {
+const subscriptionStatusMap: Record<Stripe.Subscription.Status | string, string> = {
   active: 'Active',
   trialing: 'Trialing',
   past_due: 'Past Due',
@@ -22,7 +21,7 @@ const subscriptionStatusMap: Record<Stripe.Subscription.Status, string> = {
   unpaid: 'Unpaid',
   incomplete: 'Incomplete',
   incomplete_expired: 'Expired',
-  paused: 'Paused', // Si vous utilisez la fonctionnalité de pause de Stripe
+  paused: 'Paused',
 };
 
 export function SubscriptionCards({ subscriptions, className }: Props) {
@@ -31,28 +30,34 @@ export function SubscriptionCards({ subscriptions, className }: Props) {
   } else {
     return (
       <div className={cn('grid flex-1 items-start gap-6', className)}>
-        {' '}
-        {/* Ajout de gap-6 ici pour l'espacement */}
         {subscriptions.map((subscription) => {
           const firstItem = subscription.items.data[0];
-          // Assurez-vous que 'price' et 'product' sont bien des objets et non des string (ID)
-          // Cela dépend de la manière dont vous "étendez" (expand) les objets lors de l'appel API Stripe.
           const price = firstItem?.price as Stripe.Price | undefined;
-          const product = price?.product as Stripe.Product | undefined;
+          // 'price.product' sera un ID (string) si l'objet Product n'est pas expandé.
+          // Si c'est un objet, ce sera Stripe.Product.
+          const productData = price?.product as Stripe.Product | string | null;
+
+          let productName = 'Subscription Plan'; // Default
+          let productDescription = 'View details for more information.';
+          let productImage: string | null = null;
+
+          if (typeof productData === 'object' && productData !== null) {
+            // Cas où productData EST l'objet Stripe.Product expandé
+            productName = productData.name || productName;
+            productDescription = productData.description || productDescription;
+            productImage = productData.images && productData.images.length > 0 ? productData.images[0] : null;
+          } else if (price?.nickname) {
+            // Fallback sur price.nickname si l'objet Product n'est pas expandé
+            productName = price.nickname;
+          }
+          // Si productData est un ID (string), nous ne pouvons pas obtenir le nom du produit ici sans une autre requête.
 
           let formattedPrice = 'N/A';
           let frequency = '';
-          let productDescription = product?.description || 'View details for more information.';
-          let productName = product?.name || 'Subscription Plan';
-          let productImage = product?.images && product.images.length > 0 ? product.images[0] : null;
 
           if (price?.unit_amount_decimal && price?.currency) {
-            // Utilisez unit_amount_decimal pour une précision exacte, convertissez en nombre.
-            // Multipliez par la quantité s'il y en a plusieurs (généralement 1 pour les abonnements simples)
             const amountInSmallestUnit = parseFloat(price.unit_amount_decimal) * (firstItem?.quantity || 1);
-            // formatCurrency doit prendre le montant dans la plus petite unité (ex: centimes)
             formattedPrice = formatCurrency(amountInSmallestUnit, price.currency);
-
             if (price.recurring) {
               frequency =
                 price.recurring.interval_count === 1
@@ -60,7 +65,6 @@ export function SubscriptionCards({ subscriptions, className }: Props) {
                   : `every ${price.recurring.interval_count} ${price.recurring.interval}s`;
             }
           } else if (price?.unit_amount && price?.currency) {
-            // Fallback pour unit_amount si unit_amount_decimal n'est pas là
             const amount = price.unit_amount * (firstItem.quantity || 1);
             formattedPrice = formatCurrency(amount, price.currency);
             if (price.recurring) {
@@ -84,13 +88,7 @@ export function SubscriptionCards({ subscriptions, className }: Props) {
                     })}
                   >
                     {productImage && (
-                      <Image
-                        src={productImage}
-                        alt={productName}
-                        width={48}
-                        height={48}
-                        className="rounded-md" // Optionnel: pour arrondir les coins de l'image
-                      />
+                      <Image src={productImage} alt={productName} width={48} height={48} className="rounded-md" />
                     )}
                     <Link
                       href={`/dashboard/subscriptions/${subscription.id}`}
